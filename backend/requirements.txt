@@ -1,0 +1,23 @@
+# Web Framework
+fastapi[standard]
+uvicorn
+python-multipart
+
+# AI & RAG Orchestration
+langchain
+langchain-community
+langchain-openai
+langchain-aws
+
+# Vector Database & Processing
+faiss-cpu
+pypdf
+python-docx
+python-dotenv
+
+# Audio & Voice
+elevenlabs
+
+# Utilities
+requests
+pydantic
