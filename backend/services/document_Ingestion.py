@@ -36,4 +36,3 @@ def ingest_documents(file_path: str, file_type: str, session_id: str):
         })
         
     return docs
-

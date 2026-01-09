@@ -1,12 +1,17 @@
 from fastapi import FastAPI, UploadFile, File, Form
 from models import LectureTopicRequest, GeneratedLectureResponse, LectureAudioResponse, QAAudioTranscriptResponse, QARequest, QAResponse
+from services.document_Ingestion import ingest_documents
 
 app = FastAPI()
 
+# Note : In AWS lambda (must save tmp files to /tmp directory with limited 512MB space)
+# ingest_documents takes in file path, file type and session id to return cleaned, chunked documents with metadata
+# Must save uploaded file to /tmp and pass that path to ingest_documents
 @app.post("/ingestDocuments")
 async def ingest_documents(session_id: str = Form(...), file: UploadFile = File(...)):
     
     # Logic for chunking, vectorzing and storing documents goes here
+    docs = ingest_documents(file.filename, file.content_type, session_id)
     
     return {"status": "success",
             "message": f"Documents ingested for session {session_id} and stored in vector DB."}
