@@ -1,0 +1,1 @@
+# Takes query from combination of topic + preset prompt(Ex: "Generate lecture on...") and retrieves relevant docs from Pinecone

@@ -7,13 +7,16 @@ python-multipart
 langchain
 langchain-community
 langchain-openai
+langchain-text-splitters
 langchain-aws
 
 # Vector Database & Processing
+pinecone
 faiss-cpu
 pypdf
 python-docx
 python-dotenv
+pymupdf4llm
 
 # Audio & Voice
 elevenlabs

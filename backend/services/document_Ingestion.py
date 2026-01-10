@@ -1,16 +1,11 @@
 # File for document ingestion (pdf, doc, txt) to clean text for later chunking and vectorizing
 
-from langchain.document_loaders import PyPDFLoader, TextLoader, UnstructuredWordDocumentLoader
-import pymupdf4llm
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from typing import List
-
-from langchain_community.document_loaders import TextLoader, UnstructuredWordDocumentLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter, MarkdownTextSplitter
+from langchain_community.document_loaders import PyPDFLoader, TextLoader, UnstructuredWordDocumentLoader, TextLoader, UnstructuredWordDocumentLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter, MarkdownTextSplitter
 import pymupdf4llm
 from typing import List
 
-def ingest_documents(file_path: str, file_type: str, session_id: str):
+def ingest_documents_input(file_path: str, file_type: str, session_id: str):
     # 1. LOAD AND CONVERT TO MARKDOWN/DOCUMENTS
     if file_type == 'pdf':
         md_text = pymupdf4llm.to_markdown(file_path)
@@ -35,4 +30,8 @@ def ingest_documents(file_path: str, file_type: str, session_id: str):
             "source": file_path.split("/")[-1] # Clean filename
         })
         
-    return docs
+        # Docs format: List[Document] with .page_content and .metadata attributes
+        
+    return docs # Return cleaned, chunked documents with metadata (Multiple files can be ingested in a loop)
+
+# Function for embedding and storing in vector DB
