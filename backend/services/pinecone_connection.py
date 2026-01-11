@@ -70,7 +70,7 @@ def embed_and_store_documents(docs: List, session_id: str):
         raise
     
 # Vector retrieval function (Topic for presentation/KT)
-def query_vector_database(query: str, session_id: str, top_k: int = 5):
+def query_vector_database(query: str, session_id: str, top_k: int):
     try:
         # Generate embedding for the query
         response = client.embeddings.create(
