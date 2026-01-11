@@ -5,6 +5,7 @@ from fastapi import FastAPI, UploadFile, File, Form
 from models import LectureTopicRequest, GeneratedLectureResponse, LectureAudioResponse, QAAudioTranscriptResponse, QARequest, QAResponse
 from services.document_ingestion import ingest_documents_input
 from services.pinecone_connection import embed_and_store_documents
+from services.generate_presentation import generate_presentation_content
 
 app = FastAPI()
 
@@ -43,14 +44,14 @@ async def ingest_documents(session_id: str = Form(...), file: UploadFile = File(
 # Endpoint where user requests lecture generation on a topic they input
 @app.post("/generateLecture", response_model=GeneratedLectureResponse)
 async def generate_lecture(request: LectureTopicRequest):
-    
-    # Logic for generating lecture goes here
+    # Generate presentation content
+    slide_content, lecture_script = generate_presentation_content(request.topic, request.session_id, top_k=5)
     
     return {"session_id": request.session_id,
             "topic": request.topic,
-            "slide_content": ["Slide 1", "Slide 2"],
-            "lecture_script": "Lecture script goes here"}
-    
+            "slide_content": slide_content,
+            "lecture_script": lecture_script}
+
 # Endpoint to generate audio lecture from generated lecture script
 @app.post("/generateLectureAudio", response_model=LectureAudioResponse)
 async def generate_lecture_audio(request: GeneratedLectureResponse):

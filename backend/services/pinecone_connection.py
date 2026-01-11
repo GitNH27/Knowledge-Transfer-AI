@@ -12,6 +12,18 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 index = pc.Index(host=os.getenv("PINECONE_INDEX_HOST"))
 
+# Example Format of data stored in Pinecone:
+# {
+#   "id": "session123#source_doc#chunk_0",
+#   "values": [0.123, 0.456, ...],  # Embedding vector
+#   "metadata": {
+#       "text": "The actual chunk text...",
+#       "session_id": "session123",
+#       "source": "source_doc"
+#      }
+# }
+
+
 def embed_and_store_documents(docs: List, session_id: str):
     if not docs:
         return 0
@@ -55,4 +67,29 @@ def embed_and_store_documents(docs: List, session_id: str):
         
     except Exception as e:
         print(f"Error embedding/storing documents: {e}")
+        raise
+    
+# Vector retrieval function (Topic for presentation/KT)
+def query_vector_database(query: str, session_id: str, top_k: int):
+    try:
+        # Generate embedding for the query
+        response = client.embeddings.create(
+            model="text-embedding-3-large",
+            input=[query],
+            dimensions=1024
+        )
+        query_vector = response.data[0].embedding
+        
+        # Query Pinecone index
+        search_response = index.query(
+            vector=query_vector,
+            top_k=top_k,
+            namespace=session_id,
+            include_metadata=True
+        )
+        
+        return search_response.matches  # Return the matched vectors with metadata
+    
+    except Exception as e:
+        print(f"Error querying vector database: {e}")
         raise
