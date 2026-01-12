@@ -3,6 +3,9 @@ fastapi[standard]
 uvicorn
 python-multipart
 
+# Backboard IO Backend
+backboard-sdk
+
 # AI & RAG Orchestration
 langchain
 langchain-community
@@ -24,3 +27,4 @@ elevenlabs
 # Utilities
 requests
 pydantic
+json

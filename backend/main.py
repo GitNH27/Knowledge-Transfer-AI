@@ -1,11 +1,17 @@
 import os
 import shutil
 import tempfile
+import json
 from fastapi import FastAPI, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from models import LectureTopicRequest, GeneratedLectureResponse, LectureAudioResponse, QAAudioTranscriptResponse, QARequest, QAResponse
-from services.document_ingestion import ingest_documents_input
-from services.pinecone_connection import embed_and_store_documents
-from services.generate_presentation import generate_presentation_content
+
+from services.backboard_service import create_assistant, create_thread
+from services.backboard_rag import upload_document_to_assistant
+from services.backboard_llm import send_message, send_message_with_memory, send_message_streaming
+
+session_assistants = {}  # {session_id: assistant_id}
+session_threads = {}     # {sessoin_od: thread_id}
 
 app = FastAPI()
 
@@ -22,14 +28,28 @@ async def ingest_documents(session_id: str = Form(...), file: UploadFile = File(
         shutil.copyfileobj(file.file, buffer)
     
     try:
-        docs = ingest_documents_input(temp_path, file.filename.split(".")[-1], session_id)
-        count = embed_and_store_documents(docs, session_id)
+
+        if session_id not in session_assistants:
+            assistant = await create_assistant(
+                name=f"Assistant for {session_id}",
+                description="AI onboarding assistant"
+            )
+
+            session_assistants[session_id] = assistant.assistant_id
+
+            thread = await create_thread(assistant.assistant_id)
+            session_threads[session_id] = thread.thread_id
+
+        assistant_id = session_assistants[session_id]
+
+        document = await upload_document_to_assistant(assistant_id, temp_path)
         
         return {
             "status": "success",
-            "message": f"Successfully stored {count} chunks for session {session_id}"
+            "message": f"Successfully uploaded document for session {session_id}",
+            "document_id": document.document_id
         }
-    
+
     except Exception as e:
         return {
             "status": "error",
@@ -44,13 +64,33 @@ async def ingest_documents(session_id: str = Form(...), file: UploadFile = File(
 # Endpoint where user requests lecture generation on a topic they input
 @app.post("/generateLecture", response_model=GeneratedLectureResponse)
 async def generate_lecture(request: LectureTopicRequest):
-    # Generate presentation content
-    slide_content, lecture_script = generate_presentation_content(request.topic, request.session_id, top_k=5)
+    try:
+        thread_id = session_threads.get(request.session_id)
+        if not thread_id:
+            return {"error": "Session not found. Please upload documents first."}
+            
+        prompt = f"""Generate a lecture on {request.topic}. 
+            Use the uploaded documents as context.
+            Return a JSON object with:
+            - "slide_content": list of 3-5 bullet points
+            - "lecture_script": a conversational 2-minute script"""
+
+        response = await send_message(
+            thread_id=thread_id,
+            content=prompt,
+            memory="Auto"
+        )
+
+        response_json = json.loads(response.content)
+
+        return {"session_id": request.session_id,
+                "topic": request.topic,
+                "slide_content": response_json.get("slide_content", []),
+                "lecture_script": response_json.get("lecture_script", "")
+        }
+    except Exception as e:
+        return {"error": str(e)}
     
-    return {"session_id": request.session_id,
-            "topic": request.topic,
-            "slide_content": slide_content,
-            "lecture_script": lecture_script}
 
 # Endpoint to generate audio lecture from generated lecture script
 @app.post("/generateLectureAudio", response_model=LectureAudioResponse)
@@ -61,6 +101,7 @@ async def generate_lecture_audio(request: GeneratedLectureResponse):
     return {"topic": request.topic,
             "lecture_script": request.lecture_script,
             "audio_url": "http://example.com/audio.mp3"}
+    
     
 # Endpoint for user to ask question via (audio input)
 @app.post("/askQuestionAudio", response_model=QAResponse)
@@ -76,10 +117,39 @@ async def ask_question_audio(session_id: str = Form(...), audio_file: UploadFile
 # Endpoint for user to ask question via (text input)
 @app.post("/askQuestion", response_model=QAResponse)
 async def ask_question(request: QARequest):
-    
-    # Logic for generating answer from text question goes here
-    
-    return {"question": request.question,
-            "answer": "Generated answer",
-            "audio_url": "http://example.com/answer_audio.mp3",
-            "source_documents": ["Doc 1", "Doc 2"]}
+    try:
+        thread_id = session_threads.get(request.session_id)
+        if not thread_id:
+            return {
+                "question": request.question,
+                "answer": f"Error: Session not found",
+                "audio_url": "",
+                "source_documents": [] 
+            }
+        
+        response = await send_message_with_memory(
+            thread_id=thread_id,
+            content=request.question,
+            memory="Auto"  # Uses uploaded documents automatically
+        )
+        
+        return {
+            "question": request.question,
+            "answer": response.content,
+            "audio_url": "",  # Add audio generation later
+            "source_documents": []  # Backboard handles this internally
+        }
+    except Exception as e:
+        return {
+            "question": request.question,
+            "answer": f"Error: {str(e)}",
+            "audio_url": "",
+            "source_documents": [] 
+        }
+
+
+
+# # Endpoint for user to ask question with streaming ()
+# @app.post("/askQuestionStream")
+# async def ask_question_stream(request: QARequest):
+#     pass
