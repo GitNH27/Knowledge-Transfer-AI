@@ -7,12 +7,14 @@ from datetime import datetime
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles # This is for serving static files
 
 from models import LectureTopicRequest, GeneratedLectureResponse, LectureAudioResponse, QAAudioTranscriptResponse, QARequest, QAResponse
 
 from services.backboard_service import create_assistant, create_thread
 from services.backboard_rag import upload_document_to_assistant
 from services.backboard_llm import send_message, send_message_with_memory, send_message_streaming
+from services.eleven_labs import text_to_speech
 
 session_assistants = {}  # {session_id: assistant_id}
 session_threads = {}     # {session_id: thread_id}
@@ -28,6 +30,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files for audio
+app.mount("/audio", StaticFiles(directory="session_cache"), name="audio")
 
 @app.post("/ingestDocuments")
 async def ingest_documents(session_id: str = Form(...), file: UploadFile = File(...)):
@@ -173,13 +178,28 @@ async def generate_lecture(request: LectureTopicRequest):
 # Endpoint to generate audio lecture from generated lecture script
 @app.post("/generateLectureAudio", response_model=LectureAudioResponse)
 async def generate_lecture_audio(request: GeneratedLectureResponse):
-    
-    # Logic for generating audio from lecture script goes here
-    
-    return {"topic": request.topic,
+    try:
+        # Generate audio file
+        audio_file_path = text_to_speech(
+            session_id=request.session_id, 
+            text=request.lecture_script
+        )
+        
+        filename = os.path.basename(audio_file_path) # Get just 'file.mp3'
+        audio_url = f"http://localhost:8000/audio/{filename}"
+
+        return { 
+            "topic": request.topic,
             "lecture_script": request.lecture_script,
-            "audio_url": "http://example.com/audio.mp3"}
-    
+            "audio_url": audio_url # Returns URL to audio
+        }
+
+    except Exception as e:
+        return {
+            "topic": request.topic,
+            "lecture_script": request.lecture_script,
+            "audio_url": f"Error generating audio: {str(e)}"
+        }
     
 # Endpoint for user to ask question via (audio input)
 @app.post("/askQuestionAudio", response_model=QAResponse)
