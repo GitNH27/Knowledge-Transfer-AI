@@ -2,6 +2,7 @@
 import time
 from typing import List
 from services.backboard_service import client
+from pydantic import ValidationError
 
 async def upload_document_to_assistant(assistant_id: str, file_path: str):
     """
@@ -24,12 +25,23 @@ async def upload_document_to_assistant(assistant_id: str, file_path: str):
     # Wait for the document to be indexed
     print("Waiting for document to be indexed...")
     while True:
+
         status = await client.get_document_status(document.document_id)
-        if status.status == "indexed":
+        status_value = status.status.value
+
+        print(f"Raw status response: {status}")
+        print(f"Status type: {status_value}") 
+
+        if status_value == "indexed":
             print("Document indexed successfully!")
             return document
-        elif status.status == "failed":
+        elif status_value == "failed":
             raise Exception(f"Document indexing failed: {status.status_message}")
+
+        print(f"Status is {status_value}, waiting 2 seconds...")
+
+
+
         time.sleep(2)
 
 async def upload_documents_batch(assistant_id: str, file_paths: List[str]):

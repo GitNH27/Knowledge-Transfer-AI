@@ -29,9 +29,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Note : In AWS lambda (must save tmp files to /tmp directory with limited 512MB space)
-# ingest_documents takes in file path, file type and session id to return cleaned, chunked documents with metadata
-# Must save uploaded file to /tmp and pass that path to ingest_documents
 @app.post("/ingestDocuments")
 async def ingest_documents(session_id: str = Form(...), file: UploadFile = File(...)):
     # temp_path = f"/tmp/{file.filename}" # For AWS Lambda
