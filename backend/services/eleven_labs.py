@@ -37,18 +37,12 @@ def text_to_speech(session_id, text):
 def speech_to_text(audio_bytes):
     
     response = client.speech_to_text.convert(
-        audio_file=BytesIO(audio_bytes),
-        model="scribe_v2"
+        file=BytesIO(audio_bytes),
+        model_id="scribe_v2"
     )
     transcript_text = response.text
     
     return transcript_text
-
-# Gather Specific transcript from ElevenLabs API
-def retrieve_transcript(session_id, transcription_id):
-    client.speech_to_text.transcripts.get(
-    transcription_id=transcription_id
-)
     
 # if __name__ == "__main__":
 #     # Simulate a session and some text
