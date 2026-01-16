@@ -9,16 +9,33 @@ import { useAppConfig } from "@/context/appConfig";
 import { IconButton } from "@material-tailwind/react";
 import { TrashIcon } from "@heroicons/react/24/outline";
 import { useNavigate } from "react-router-dom";
+import { apiService } from "@/services/api";
 
 export function Lectures() {
   const { lectures, setLectures, activeLecture, setActiveLecture } = useAppConfig();
   const navigate = useNavigate();
 
-  const deleteLecture = (docId, topic) => {
-    const filtered = lectures.filter(
-      (l) => !(l.documentId === docId && l.topic === topic)
-    );
-    setLectures(filtered);
+  // 2. Make the delete function async
+  const deleteLecture = async (sessionId, docId, topic) => {
+    // Optional: Add a confirmation dialog
+    if (!window.confirm("Are you sure you want to delete this session?")) return;
+
+    try {
+      // 3. Call the FastAPI backend to delete the thread/session
+      // Note: Using sessionId here as that's what your FastAPI @app.delete expects
+      await apiService.deleteSession(sessionId);
+
+      // 4. Update local state only after successful backend deletion
+      const filtered = lectures.filter(
+        (l) => !(l.documentId === docId && l.topic === topic)
+      );
+      setLectures(filtered);
+      
+      console.log(`Successfully deleted session: ${sessionId}`);
+    } catch (error) {
+      console.error("Failed to delete session from backend:", error);
+      alert("Error deleting session. Please try again.");
+    }
   };
 
   /* -------- Group lectures by document -------- */
@@ -103,7 +120,7 @@ export function Lectures() {
                       color="red"
                       variant="text"
                       onClick={() =>
-                        deleteLecture(lecture.documentId, lecture.topic)
+                        deleteLecture(lecture.sessionId, lecture.documentId, lecture.topic)
                       }
                     >
                       <TrashIcon className="h-4 w-4" />
