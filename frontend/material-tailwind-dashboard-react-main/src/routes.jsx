@@ -15,7 +15,7 @@ export const routes = [
     pages: [
       {
         icon: <CloudArrowUpIcon {...icon} />,
-        name: "Upload Documents",
+        name: "Upload Document",
         path: "/upload",
         element: <Upload />,
       },

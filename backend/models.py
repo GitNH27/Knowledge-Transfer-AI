@@ -16,13 +16,9 @@ class GeneratedLectureResponse(BaseModel):
 
 # Model for Audio lecture response to reduce botteneck
 class LectureAudioResponse(BaseModel):
+    session_id: str
     topic: str
     lecture_script: str
-    audio_url: str
-    
-# Model for QA Audio Text transcription response
-class QAAudioTranscriptResponse(BaseModel):
-    question: str
     audio_url: str
     
 # Model for QA request string
@@ -32,6 +28,7 @@ class QARequest(BaseModel):
     
 # Model for QA response
 class QAResponse(BaseModel):
+    session_id: str
     question: str
     answer: str
     audio_url: str

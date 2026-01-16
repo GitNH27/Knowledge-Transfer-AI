@@ -27,3 +27,4 @@ elevenlabs
 # Utilities
 requests
 pydantic
+# json

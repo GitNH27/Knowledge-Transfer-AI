@@ -5,44 +5,80 @@ import {
   CardBody,
   Typography,
   Input,
+  IconButton,
 } from "@material-tailwind/react";
-import { CloudArrowUpIcon } from "@heroicons/react/24/outline";
+import {
+  CloudArrowUpIcon,
+  TrashIcon,
+  CheckIcon,
+} from "@heroicons/react/24/outline";
 
 import { useAppConfig } from "@/context/appConfig";
 import DATA from "@/data/onboardingData";
 
 export function Upload() {
-  const { industry, role, topics, lectures, setLectures } = useAppConfig(); 
+  const { industry, role, topics, lectures, setLectures } = useAppConfig();
+
   const [customTopic, setCustomTopic] = useState("");
-  const [fileName, setFileName] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [selectedDocumentId, setSelectedDocumentId] = useState(null);
 
   const industryLabel = DATA[industry]?.label;
   const roleLabel = DATA[industry]?.roles[role]?.label;
 
+  /* -------------------- DOCUMENT HANDLING -------------------- */
+
   const handleFileSelect = (e) => {
-    if (e.target.files?.length) {
-      setFileName(e.target.files[0].name);
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const newDoc = {
+      id: crypto.randomUUID(),
+      name: file.name,
+      file,
+    };
+
+    setDocuments((prev) => [...prev, newDoc]);
+    setSelectedDocumentId(newDoc.id);
+  };
+
+  const deleteDocument = (id) => {
+    setDocuments((prev) => prev.filter((doc) => doc.id !== id));
+    if (id === selectedDocumentId) {
+      setSelectedDocumentId(null);
     }
   };
 
-  const generateLecture = (topic) => {
-    if (!topic) return;
+  const selectedDocument = documents.find(
+    (doc) => doc.id === selectedDocumentId
+  );
 
-    // Prevent duplicate
-    if (lectures.some(l => l.topic.toLowerCase() === topic.toLowerCase())) return;
+  /* -------------------- LECTURE GENERATION -------------------- */
+
+  const generateLecture = (topic) => {
+    if (!topic || !selectedDocument) return;
+
+    if (
+      lectures.some(
+        (l) => l.topic.toLowerCase() === topic.toLowerCase()
+      )
+    )
+      return;
 
     setLectures([
       ...lectures,
       {
         topic,
         completion: 0,
-        file: fileName ?? null,
+        documentId: selectedDocument.id,
+        documentName: selectedDocument.name,
       },
     ]);
 
-    // Clear custom topic input if used
     if (customTopic === topic) setCustomTopic("");
   };
+
+  /* -------------------- UI -------------------- */
 
   return (
     <div className="space-y-10 max-w-6xl mx-auto py-6">
@@ -55,31 +91,76 @@ export function Upload() {
         </Typography>
       </div>
 
-      {/* Upload Section */}
+      {/* Upload */}
       <Card className="border border-dashed border-blue-gray-200 bg-blue-gray-50/40">
-        <CardBody className="flex flex-col items-center justify-center py-10">
+        <CardBody className="flex flex-col items-center py-8">
           <CloudArrowUpIcon className="h-10 w-10 text-blue-gray-400 mb-4" />
           <Typography variant="h6">Upload a document</Typography>
-          <Typography color="gray" className="text-sm mt-1 mb-4 text-center">
-            Document used as context for lecture generation
-          </Typography>
 
-          <label className="cursor-pointer">
+          <label className="cursor-pointer mt-4">
             <input
               type="file"
               className="hidden"
               onChange={handleFileSelect}
             />
-            <div className="px-6 py-2 rounded-lg bg-white shadow-sm border hover:shadow transition">
-              <Typography color="blue-gray">
-                {fileName ?? "Choose a file"}
-              </Typography>
+            <div className="px-6 py-2 rounded-lg bg-white border shadow-sm hover:shadow transition">
+              <Typography color="blue-gray">Choose file</Typography>
             </div>
           </label>
         </CardBody>
       </Card>
 
-      {/* Topics Section */}
+      {/* Uploaded Documents */}
+      {documents.length > 0 && (
+        <div className="space-y-3">
+          <Typography variant="h5">Uploaded documents</Typography>
+
+          <div className="space-y-2">
+            {documents.map((doc) => {
+              const isSelected = doc.id === selectedDocumentId;
+
+              return (
+                <Card
+                  key={doc.id}
+                  className={`transition ${
+                    isSelected ? "border-blue-500" : ""
+                  }`}
+                >
+                  <CardBody className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Typography>{doc.name}</Typography>
+                      {isSelected && (
+                        <CheckIcon className="h-4 w-4 text-blue-500" />
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant={isSelected ? "filled" : "outlined"}
+                        onClick={() => setSelectedDocumentId(doc.id)}
+                      >
+                        {isSelected ? "Selected" : "Select"}
+                      </Button>
+
+                      <IconButton
+                        size="sm"
+                        color="red"
+                        disabled={isSelected}
+                        onClick={() => deleteDocument(doc.id)}
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </IconButton>
+                    </div>
+                  </CardBody>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Topics */}
       <div className="space-y-4">
         <Typography variant="h5">Select a topic</Typography>
 
@@ -88,18 +169,19 @@ export function Upload() {
             const isGenerated = lectures.some(
               (l) => l.topic.toLowerCase() === topic.toLowerCase()
             );
+
             return (
               <Card
                 key={topic}
-                className={`transition hover:shadow-md ${
-                  isGenerated ? "opacity-50 cursor-not-allowed" : ""
+                className={`transition ${
+                  isGenerated ? "opacity-50" : "hover:shadow-md"
                 }`}
               >
                 <CardBody className="flex items-center justify-between">
                   <Typography>{topic}</Typography>
                   <Button
                     size="sm"
-                    disabled={isGenerated}
+                    disabled={isGenerated || !selectedDocument}
                     onClick={() => generateLecture(topic)}
                   >
                     Generate
@@ -111,7 +193,7 @@ export function Upload() {
         </div>
       </div>
 
-      {/* Custom Topic Section */}
+      {/* Custom Topic */}
       <Card>
         <CardBody className="space-y-4">
           <Typography variant="h5">Custom topic</Typography>
@@ -126,8 +208,11 @@ export function Upload() {
               className="md:w-40"
               disabled={
                 !customTopic ||
+                !selectedDocument ||
                 lectures.some(
-                  (l) => l.topic.toLowerCase() === customTopic.toLowerCase()
+                  (l) =>
+                    l.topic.toLowerCase() ===
+                    customTopic.toLowerCase()
                 )
               }
               onClick={() => generateLecture(customTopic)}
