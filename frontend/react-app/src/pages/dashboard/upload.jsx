@@ -15,13 +15,26 @@ import {
 
 import { useAppConfig } from "@/context/appConfig";
 import DATA from "@/data/onboardingData";
+import { useNavigate } from "react-router-dom";
 
 export function Upload() {
-  const { industry, role, topics, lectures, setLectures } = useAppConfig();
+  const {
+    industry,
+    role,
+    topics,
+    lectures,
+    lecturesByContext,
+    setLecturesByContext,
+    activeLecture,
+    setActiveLecture,
+    documents,
+    setDocuments,
+    selectedDocumentId,
+    setSelectedDocumentId,
+  } = useAppConfig();
+  const navigate = useNavigate();
 
   const [customTopic, setCustomTopic] = useState("");
-  const [documents, setDocuments] = useState([]);
-  const [selectedDocumentId, setSelectedDocumentId] = useState(null);
 
   const industryLabel = DATA[industry]?.label;
   const roleLabel = DATA[industry]?.roles[role]?.label;
@@ -35,11 +48,11 @@ export function Upload() {
     const newDoc = {
       id: crypto.randomUUID(),
       name: file.name,
-      file,
+      uploadedAt: Date.now(),
     };
 
     setDocuments((prev) => [...prev, newDoc]);
-    setSelectedDocumentId(newDoc.id);
+    setSelectedDocumentId(newDoc.id); // auto-select
   };
 
   const deleteDocument = (id) => {
@@ -56,27 +69,48 @@ export function Upload() {
   /* -------------------- LECTURE GENERATION -------------------- */
 
   const generateLecture = (topic) => {
-    if (!topic || !selectedDocument) return;
+    if (!topic || !selectedDocument || !industry || !role) return;
 
-    if (
-      lectures.some(
-        (l) => l.topic.toLowerCase() === topic.toLowerCase()
-      )
-    )
-      return;
+    const contextKey = `${industry}|${role}`;
 
-    setLectures([
-      ...lectures,
-      {
-        topic,
-        completion: 0,
-        documentId: selectedDocument.id,
-        documentName: selectedDocument.name,
-      },
-    ]);
+    // Ensure lectures for this context exist and is always an array
+    const currentLectures = lecturesByContext[contextKey] || [];
 
+    // Prevent duplicates for the same document
+    const exists = currentLectures.some(
+      (l) =>
+        l.topic.toLowerCase() === topic.toLowerCase() &&
+        l.documentId === selectedDocument.id
+    );
+
+    if (exists) return;
+
+    // Create new lecture object
+    const newLecture = {
+      id: crypto.randomUUID(),
+      topic,
+      completion: 0,
+      documentId: selectedDocument.id,
+      documentName: selectedDocument.name,
+      createdAt: Date.now(),
+    };
+
+    // Update lecturesByContext
+    setLecturesByContext({
+      ...lecturesByContext,
+      [contextKey]: [...lectures, newLecture],
+    });
+    
+    // Set this as active lecture
+    setActiveLecture(newLecture);
+
+    // Navigate to the learn page
+    navigate("/learn");
+
+    // Clear custom topic input if used
     if (customTopic === topic) setCustomTopic("");
   };
+
 
   /* -------------------- UI -------------------- */
 
@@ -98,11 +132,7 @@ export function Upload() {
           <Typography variant="h6">Upload a document</Typography>
 
           <label className="cursor-pointer mt-4">
-            <input
-              type="file"
-              className="hidden"
-              onChange={handleFileSelect}
-            />
+            <input type="file" className="hidden" onChange={handleFileSelect} />
             <div className="px-6 py-2 rounded-lg bg-white border shadow-sm hover:shadow transition">
               <Typography color="blue-gray">Choose file</Typography>
             </div>
@@ -110,7 +140,7 @@ export function Upload() {
         </CardBody>
       </Card>
 
-      {/* Uploaded Documents */}
+      {/* Documents */}
       {documents.length > 0 && (
         <div className="space-y-3">
           <Typography variant="h5">Uploaded documents</Typography>
@@ -122,9 +152,7 @@ export function Upload() {
               return (
                 <Card
                   key={doc.id}
-                  className={`transition ${
-                    isSelected ? "border-blue-500" : ""
-                  }`}
+                  className={isSelected ? "border-blue-500" : ""}
                 >
                   <CardBody className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -138,6 +166,7 @@ export function Upload() {
                       <Button
                         size="sm"
                         variant={isSelected ? "filled" : "outlined"}
+                        disabled={isSelected}
                         onClick={() => setSelectedDocumentId(doc.id)}
                       >
                         {isSelected ? "Selected" : "Select"}
@@ -165,17 +194,20 @@ export function Upload() {
         <Typography variant="h5">Select a topic</Typography>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {topics.map((topic) => {
-            const isGenerated = lectures.some(
-              (l) => l.topic.toLowerCase() === topic.toLowerCase()
-            );
+          {Array.isArray(topics) && topics.map((topic) => {
+            // Check if this topic is already generated for the selected document
+            const isGenerated = Array.isArray(lectures)
+              ? lectures.some(
+                  (l) =>
+                    l.topic.toLowerCase() === topic.toLowerCase() &&
+                    l.documentId === selectedDocumentId
+                )
+              : false;
 
             return (
               <Card
                 key={topic}
-                className={`transition ${
-                  isGenerated ? "opacity-50" : "hover:shadow-md"
-                }`}
+                className={`transition ${isGenerated ? "opacity-50" : "hover:shadow-md"}`}
               >
                 <CardBody className="flex items-center justify-between">
                   <Typography>{topic}</Typography>
@@ -211,8 +243,8 @@ export function Upload() {
                 !selectedDocument ||
                 lectures.some(
                   (l) =>
-                    l.topic.toLowerCase() ===
-                    customTopic.toLowerCase()
+                    l.topic.toLowerCase() === customTopic.toLowerCase() &&
+                    l.documentId === selectedDocumentId
                 )
               }
               onClick={() => generateLecture(customTopic)}
