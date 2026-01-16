@@ -120,7 +120,7 @@ export function Lectures() {
                       color="red"
                       variant="text"
                       onClick={() =>
-                        deleteLecture(lecture.documentId, lecture.topic)
+                        deleteLecture(lecture.sessionId, lecture.documentId, lecture.topic)
                       }
                     >
                       <TrashIcon className="h-4 w-4" />
