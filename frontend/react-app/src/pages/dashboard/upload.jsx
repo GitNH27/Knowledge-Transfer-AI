@@ -16,6 +16,7 @@ import {
 import { useAppConfig } from "@/context/appConfig";
 import DATA from "@/data/onboardingData";
 import { useNavigate } from "react-router-dom";
+import { apiService } from "@/api/api";
 
 export function Upload() {
   const {
@@ -48,6 +49,7 @@ export function Upload() {
     const newDoc = {
       id: crypto.randomUUID(),
       name: file.name,
+      file,
       uploadedAt: Date.now(),
     };
 
@@ -68,47 +70,57 @@ export function Upload() {
 
   /* -------------------- LECTURE GENERATION -------------------- */
 
-  const generateLecture = (topic) => {
-    if (!topic || !selectedDocument || !industry || !role) return;
+  const generateLecture = async (topic) => {
+    if (!topic || !selectedDocument) return;
 
-    const contextKey = `${industry}|${role}`;
+    try {
+      const sessionID = crypto.randomUUID();
+            
+      // 1. Ingest document
+      const ingestResult = await apiService.ingestDocument(
+        sessionID, // replace with dynamic session ID if needed
+        selectedDocument.file // ensure you store the actual File object when uploading
+      );
 
-    // Ensure lectures for this context exist and is always an array
-    const currentLectures = lecturesByContext[contextKey] || [];
+      if (ingestResult.status !== "success") {
+        alert("Failed to ingest document: " + ingestResult.message);
+        return;
+      }
 
-    // Prevent duplicates for the same document
-    const exists = currentLectures.some(
-      (l) =>
-        l.topic.toLowerCase() === topic.toLowerCase() &&
-        l.documentId === selectedDocument.id
-    );
+      // 2. Generate lecture
+      const lectureData = await apiService.generateLecture(sessionID, topic);
 
-    if (exists) return;
+      // 3. Generate audio for lecture
+      const audioData = await apiService.generateAudio(lectureData);
 
-    // Create new lecture object
-    const newLecture = {
-      id: crypto.randomUUID(),
-      topic,
-      completion: 0,
-      documentId: selectedDocument.id,
-      documentName: selectedDocument.name,
-      createdAt: Date.now(),
-    };
+      // 4. Build the lecture object for app state
+      const newLecture = {
+        id: crypto.randomUUID(),
+        topic,
+        documentId: selectedDocument.id,
+        documentName: selectedDocument.name,
+        sessionID,
+        slide_content: lectureData.slide_content,
+        lecture_script: lectureData.lecture_script,
+        audioUrl: audioData.audio_url, // returned from API
+        createdAt: Date.now(),
+      };
 
-    // Update lecturesByContext
-    setLecturesByContext({
-      ...lecturesByContext,
-      [contextKey]: [...lectures, newLecture],
-    });
-    
-    // Set this as active lecture
-    setActiveLecture(newLecture);
+      // Save lecture in context
+      const contextKey = `${industry}|${role}`;
+      setLecturesByContext({
+        ...lecturesByContext,
+        [contextKey]: [...(lecturesByContext[contextKey] || []), newLecture],
+      });
 
-    // Navigate to the learn page
-    navigate("/learn");
+      setActiveLecture(newLecture);
 
-    // Clear custom topic input if used
-    if (customTopic === topic) setCustomTopic("");
+      // Navigate to Learn page
+      navigate("/learn");
+    } catch (error) {
+      console.error(error);
+      alert("Error generating lecture: " + error.message);
+    }
   };
 
 

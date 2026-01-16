@@ -161,52 +161,56 @@ export function Learn() {
         </IconButton>
       </div>
       
-      {/* Notes Section */}
-      <Card>
-        <CardBody className="space-y-4">
-          <Typography variant="h5">
-            Key Notes
-          </Typography>
+      {/* Key Notes / Bullet Points */}
+      {activeLecture.slide_content && activeLecture.slide_content.length > 0 && (
+        <Card>
+          <CardBody className="space-y-4">
+            <Typography variant="h5">Key Notes</Typography>
+            <ul className="list-disc pl-5 space-y-2 text-blue-gray-700">
+              {activeLecture.slide_content.map((item, idx) => (
+                <li key={idx}>{item}</li>
+              ))}
+            </ul>
+          </CardBody>
+        </Card>
+      )}
 
-          <ul className="list-disc pl-5 space-y-2 text-blue-gray-700">
-            <li>Main concepts extracted from the document</li>
-            <li>Important definitions</li>
-            <li>Practical examples</li>
-          </ul>
-        </CardBody>
-      </Card>
-      
-      {/* AI Explanation */}
-      <Card>
-        <CardBody className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Typography variant="h5">
-              AI Explanation
-            </Typography>
+      {/* AI Explanation / Lecture Script */}
+      {activeLecture.lecture_script && (
+        <Card>
+          <CardBody className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Typography variant="h5">AI Explanation</Typography>
 
-            <div className="flex gap-2">
-              {!isPlaying ? (
-                <IconButton onClick={playAudio}>
-                  <PlayIcon className="h-5 w-5" />
-                </IconButton>
-              ) : (
-                <IconButton onClick={pauseAudio}>
-                  <PauseIcon className="h-5 w-5" />
-                </IconButton>
-              )}
+              <div className="flex gap-2">
+                {!isPlaying ? (
+                  <IconButton onClick={playAudio}>
+                    <PlayIcon className="h-5 w-5" />
+                  </IconButton>
+                ) : (
+                  <IconButton onClick={pauseAudio}>
+                    <PauseIcon className="h-5 w-5" />
+                  </IconButton>
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* Placeholder content */}
-          <Typography color="blue-gray" className="leading-relaxed">
-            This section will contain the AI-generated explanation of the
-            lecture topic. You will be able to listen to it using text-to-speech
-            and pause or resume at any time.
-          </Typography>
-        </CardBody>
-      </Card>
+            <Typography color="blue-gray" className="leading-relaxed whitespace-pre-wrap">
+              {activeLecture.lecture_script}
+            </Typography>
+          </CardBody>
+        </Card>
+      )}
 
       {/* Ask AI Section (future) */}
+      <Card>
+        <CardBody className="space-y-3">
+          <Typography variant="h5">Ask a question</Typography>
+          <Typography color="gray">
+            You’ll be able to ask questions about this lecture here.
+          </Typography>
+        </CardBody>
+      </Card>
   {/* Ask AI Section */}
     <Card className="border border-blue-gray-100 shadow-sm">
       <CardBody className="space-y-4">
