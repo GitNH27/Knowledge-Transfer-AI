@@ -4,15 +4,17 @@ import tempfile
 import json
 from datetime import datetime
 
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles # This is for serving static files
 
-from models import LectureTopicRequest, GeneratedLectureResponse, LectureAudioResponse, QAAudioTranscriptResponse, QARequest, QAResponse
+from models import LectureTopicRequest, GeneratedLectureResponse, LectureAudioResponse, QARequest, QAResponse
 
 from services.backboard_service import create_assistant, create_thread
 from services.backboard_rag import upload_document_to_assistant
 from services.backboard_llm import send_message, send_message_with_memory, send_message_streaming
+from services.eleven_labs import text_to_speech, speech_to_text
 
 session_assistants = {}  # {session_id: assistant_id}
 session_threads = {}     # {session_id: thread_id}
@@ -28,6 +30,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files for audio
+app.mount("/audio", StaticFiles(directory="session_cache"), name="audio")
 
 @app.post("/ingestDocuments")
 async def ingest_documents(session_id: str = Form(...), file: UploadFile = File(...)):
@@ -172,53 +177,107 @@ async def generate_lecture(request: LectureTopicRequest):
 
 # Endpoint to generate audio lecture from generated lecture script
 @app.post("/generateLectureAudio", response_model=LectureAudioResponse)
-async def generate_lecture_audio(request: GeneratedLectureResponse):
-    
-    # Logic for generating audio from lecture script goes here
-    
-    return {"topic": request.topic,
-            "lecture_script": request.lecture_script,
-            "audio_url": "http://example.com/audio.mp3"}
-    
-    
-# Endpoint for user to ask question via (audio input)
-@app.post("/askQuestionAudio", response_model=QAResponse)
-async def ask_question_audio(session_id: str = Form(...), audio_file: UploadFile = File(...)):
-    
-    # Logic for transcribing audio and generating answer goes here
-    
-    return {"question": "Transcribed question",
-            "answer": "Generated answer",
-            "audio_url": "http://example.com/answer_audio.mp3",
-            "source_documents": ["Doc 1", "Doc 2"]}
+async def generate_lecture_audio(audioRequest: Request, request: GeneratedLectureResponse):
+    try:
+        audio_file_path = text_to_speech(session_id=request.session_id, text=request.lecture_script)
+        
+        filename = os.path.basename(audio_file_path)
+        base_url = str(audioRequest.base_url).rstrip("/")
+        audio_url = f"{base_url}/audio/{filename}"
 
-# Endpoint for user to ask question via (text input)
+        return { 
+            "session_id": request.session_id,
+            "topic": request.topic,
+            "lecture_script": request.lecture_script,
+            "audio_url": audio_url
+        }
+    except Exception as e:
+        return {
+            "session_id": request.session_id,
+            "topic": request.topic,
+            "lecture_script": request.lecture_script,
+            "audio_url": f"Error generating audio: {str(e)}"
+        }
+
+@app.post("/askQuestionAudio", response_model=QAResponse)
+async def ask_question_audio(audioRequest: Request, session_id: str = Form(...), audio_file: UploadFile = File(...)):
+    try:
+        audio_bytes = await audio_file.read()
+        user_question_text = speech_to_text(audio_bytes)
+        
+        if not user_question_text:
+            return {
+                "session_id": session_id,
+                "question": "Transcription failed",
+                "answer": "Error in audio processing",
+                "audio_url": "",
+                "source_documents": []
+            }
+
+        thread_id = session_threads.get(session_id)
+        if not thread_id:
+            return {
+                "session_id": session_id,
+                "question": user_question_text,
+                "answer": "Error: Thread not found",
+                "audio_url": "",
+                "source_documents": []
+            }
+
+        llm_response = await send_message_with_memory(thread_id=thread_id, content=user_question_text, memory="Auto")
+        answer_text = llm_response.content
+
+        audio_path = text_to_speech(session_id, answer_text)
+        filename = os.path.basename(audio_path)
+        base_url = str(audioRequest.base_url).rstrip("/")
+        audio_url = f"{base_url}/audio/{filename}"
+
+        return {
+            "session_id": session_id,
+            "question": user_question_text,
+            "answer": answer_text,
+            "audio_url": audio_url,
+            "source_documents": []
+        }
+    except Exception as e:
+        return {
+            "session_id": session_id,
+            "question": "Audio processing failed",
+            "answer": f"Error: {str(e)}",
+            "audio_url": "",
+            "source_documents": []
+        }
+
 @app.post("/askQuestion", response_model=QAResponse)
-async def ask_question(request: QARequest):
+async def ask_question(audioRequest: Request, request: QARequest):
     try:
         thread_id = session_threads.get(request.session_id)
         if not thread_id:
             return {
+                "session_id": request.session_id,
                 "question": request.question,
-                "answer": f"Error: Session not found",
+                "answer": "Error: Session not found",
                 "audio_url": "",
                 "source_documents": [] 
             }
         
-        response = await send_message_with_memory(
-            thread_id=thread_id,
-            content=request.question,
-            memory="Auto"  # Uses uploaded documents automatically
-        )
+        response = await send_message_with_memory(thread_id=thread_id, content=request.question, memory="Auto")
+        
+        audio_path = text_to_speech(session_id=request.session_id, text=response.content)
+        filename = os.path.basename(audio_path)
+        base_url = str(audioRequest.base_url).rstrip("/")
+        audio_url = f"{base_url}/audio/{filename}"
         
         return {
+            "session_id": request.session_id,
             "question": request.question,
             "answer": response.content,
-            "audio_url": "",  # Add audio generation later
-            "source_documents": []  # Backboard handles this internally
+            "audio_url": audio_url,
+            "source_documents": []
         }
     except Exception as e:
         return {
+            "session_id": request.session_id,
             "question": request.question,
             "answer": f"Error: {str(e)}",
             "audio_url": "",
