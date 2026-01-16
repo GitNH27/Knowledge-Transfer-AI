@@ -1,6 +1,12 @@
 # Pydantic models for core models used in the backend application.
 from pydantic import BaseModel
 
+class IngestSuccessResponse(BaseModel) :
+    status: str
+    message: str
+    document_id: str
+    filename: str
+
 # After doc ingest and in vector DB, topic prompt for what user wants lecture on
 class LectureTopicRequest(BaseModel):
     session_id: str

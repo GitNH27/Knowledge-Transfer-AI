@@ -16,7 +16,7 @@ import {
 import { useAppConfig } from "@/context/appConfig";
 import DATA from "@/data/onboardingData";
 import { useNavigate } from "react-router-dom";
-import { apiService } from "@/api/api";
+import { apiService } from "@/services/api";
 
 export function Upload() {
   const {
@@ -72,6 +72,14 @@ export function Upload() {
 
   const generateLecture = async (topic) => {
     if (!topic || !selectedDocument) return;
+
+    // DEBUG: Check if the file exists right before the call
+    console.log("Selected Document Object:", selectedDocument);
+    console.log("File Object:", selectedDocument.file);
+
+    if (!(selectedDocument.file instanceof File)) {
+      console.error("The object is not a valid File instance.");
+    }
 
     try {
       const sessionID = crypto.randomUUID();
