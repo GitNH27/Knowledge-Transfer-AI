@@ -21,8 +21,6 @@ export function Lectures() {
     setLectures(filtered);
   };
 
-
-
   /* -------- Group lectures by document -------- */
   const lecturesByDocument = lectures.reduce((acc, lecture) => {
     if (!acc[lecture.documentId]) {
