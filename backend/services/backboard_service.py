@@ -37,3 +37,7 @@ async def create_thread(assistant_id: str):
 async def get_assistant(assistant_id: str):
     """Get an existing assistant by ID."""
     return await client.get_assistant(assistant_id)
+
+# Delete Thread
+async def delete_thread(thread_id: str):
+    return await client.delete_thread(thread_id)

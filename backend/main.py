@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles # This is for serving static files
 
 from models import LectureTopicRequest, GeneratedLectureResponse, LectureAudioResponse, QARequest, QAResponse
 
-from services.backboard_service import create_assistant, create_thread
+from services.backboard_service import create_assistant, create_thread, delete_thread
 from services.backboard_rag import upload_document_to_assistant
 from services.backboard_llm import send_message, send_message_with_memory, send_message_streaming
 from services.eleven_labs import text_to_speech, speech_to_text
@@ -297,7 +297,35 @@ async def get_documents(session_id: str):
         "count": len(documents)
     }
 
-# # Endpoint for user to ask question with streaming ()
-# @app.post("/askQuestionStream")
-# async def ask_question_stream(request: QARequest):
-#     pass
+# Delete Thread endpoint/session
+@app.delete("/deleteSession/{session_id}")
+async def delete_session(session_id: str):
+    """
+    Clears the session locally and deletes the associated thread on Backboard.
+    """
+    try:
+        # 1. Check if the thread exists in our memory
+        thread_id = session_threads.get(session_id)
+        
+        if thread_id:
+            # 2. Call the Backboard service to delete the thread
+            # This uses the 'delete_thread' function you imported from services.backboard_service
+            await delete_thread(thread_id)
+        
+        # 3. Clean up local memory dictionaries
+        # We use .pop(..., None) to avoid errors if the key was already gone
+        session_threads.pop(session_id, None)
+        session_assistants.pop(session_id, None)
+        session_documents.pop(session_id, None)
+        
+        return {
+            "status": "success",
+            "session_id": session_id,
+            "message": f"Session {session_id} and its associated thread have been deleted."
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to delete session: {str(e)}"
+        }
