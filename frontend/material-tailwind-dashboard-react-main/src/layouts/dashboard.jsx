@@ -6,7 +6,6 @@ import { IconButton } from "@material-tailwind/react";
 import {
   Sidenav,
   DashboardNavbar,
-  Footer,
 } from "@/widgets/layout";
 
 import routes from "@/routes";
@@ -24,11 +23,6 @@ export function Dashboard() {
   const { industry, role } = useAppConfig();
   const navigate = useNavigate();
 
-  /**
-   * -------------------------
-   * ONBOARDING GATE
-   * -------------------------
-   */
   useEffect(() => {
     if (!industry || !role) {
       navigate("/onboarding");
@@ -49,22 +43,9 @@ export function Dashboard() {
       <div className="p-4 xl:ml-80">
         <DashboardNavbar />
 
-        {/* Main Page Content */}
         <Outlet />
 
-        {/* Floating Config Button */}
-        <IconButton
-          size="lg"
-          color="white"
-          className="fixed bottom-8 right-8 z-40 rounded-full shadow-blue-gray-900/10"
-          ripple={false}
-          onClick={() => setOpenConfigurator(dispatch, true)}
-        >
-          <Cog6ToothIcon className="h-5 w-5" />
-        </IconButton>
-
         <div className="text-blue-gray-600">
-          <Footer />
         </div>
       </div>
     </div>

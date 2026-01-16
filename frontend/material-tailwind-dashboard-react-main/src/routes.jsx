@@ -1,11 +1,9 @@
 import {
-  ArrowUpTrayIcon,
-  UserCircleIcon,
-  ServerStackIcon,
-  RectangleStackIcon,
+  CloudArrowUpIcon,
+  BookOpenIcon,
+  BoltIcon,
 } from "@heroicons/react/24/solid";
-import { Home, Profile } from "@/pages/dashboard";
-import { SignIn, Onboarding } from "@/pages/page";
+import { Upload, Lectures } from "@/pages/dashboard";
 
 const icon = {
   className: "w-5 h-5 text-inherit",
@@ -16,33 +14,22 @@ export const routes = [
     layout: "dashboard",
     pages: [
       {
-        icon: <ArrowUpTrayIcon {...icon} />,
+        icon: <CloudArrowUpIcon {...icon} />,
         name: "Upload Documents",
         path: "/upload",
-        element: <Home />,
+        element: <Upload />,
       },
       {
-        icon: <UserCircleIcon {...icon} />,
-        name: "profile",
-        path: "/profile",
-        element: <Profile />,
+        icon: <BookOpenIcon {...icon} />,
+        name: "Lectures",
+        path: "/lectures",
+        element: <Lectures />,
       },
       {
-        icon: <ServerStackIcon {...icon} />,
-        name: "sign in",
-        path: "/sign-in",
-        element: <SignIn />,
-      },
-    ],
-  },
-  {
-    layout: "page",
-    pages: [
-      {
-        icon: null,
-        name: "Onboarding",
-        path: "/onboarding",
-        element: <Onboarding />,
+        icon: <BoltIcon {...icon} />,
+        name: "Learn",
+        path: "/learn",
+        element: <Lectures />
       },
     ],
   },
