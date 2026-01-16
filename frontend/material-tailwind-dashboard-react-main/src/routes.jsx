@@ -2,8 +2,9 @@ import {
   CloudArrowUpIcon,
   BookOpenIcon,
   BoltIcon,
+  Cog6ToothIcon,
 } from "@heroicons/react/24/solid";
-import { Upload, Lectures } from "@/pages/dashboard";
+import { Upload, Lectures, Learn, Settings } from "@/pages/dashboard";
 
 const icon = {
   className: "w-5 h-5 text-inherit",
@@ -29,7 +30,13 @@ export const routes = [
         icon: <BoltIcon {...icon} />,
         name: "Learn",
         path: "/learn",
-        element: <Lectures />
+        element: <Learn />
+      },
+      {
+        icon: <Cog6ToothIcon {...icon} />,
+        name: "Settings",
+        path: "/settings",
+        element: <Settings />
       },
     ],
   },
