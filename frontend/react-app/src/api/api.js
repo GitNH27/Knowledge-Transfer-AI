@@ -1,6 +1,6 @@
 // Fetch Client FastAPI Connection
 
-export const fetchClient = () => fetch("http://localhost:8000");
+const API_BASE = "http://localhost:8000";
 
 export const apiService = {
   // 1. Multipart/Form-Data (File Upload)
