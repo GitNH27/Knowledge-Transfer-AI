@@ -1,3 +1,4 @@
+import re
 import os
 import shutil
 import tempfile
@@ -9,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles # This is for serving static files
 
-from models import LectureTopicRequest, GeneratedLectureResponse, LectureAudioResponse, QARequest, QAResponse
+from models import LectureTopicRequest, GeneratedLectureResponse, LectureAudioResponse, QARequest, QAResponse, IngestSuccessResponse
 
 from services.backboard_service import create_assistant, create_thread, delete_thread
 from services.backboard_rag import upload_document_to_assistant
@@ -34,7 +35,7 @@ app.add_middleware(
 # Mount static files for audio
 app.mount("/audio", StaticFiles(directory="session_cache"), name="audio")
 
-@app.post("/ingestDocuments")
+@app.post("/ingestDocuments", response_model=IngestSuccessResponse)
 async def ingest_documents(session_id: str = Form(...), file: UploadFile = File(...)):
     # temp_path = f"/tmp/{file.filename}" # For AWS Lambda
     temp_dir = tempfile.gettempdir()
@@ -69,7 +70,7 @@ async def ingest_documents(session_id: str = Form(...), file: UploadFile = File(
         
         session_documents[session_id].append({
             "filename": file.filename,
-            "document_id": document.document_id,
+            "document_id": str(document.document_id),
             "uploaded_at": datetime.now().isoformat(),
             "size": file_size,
             "content_type": file.content_type or "unknown"
@@ -78,7 +79,7 @@ async def ingest_documents(session_id: str = Form(...), file: UploadFile = File(
         return {
             "status": "success",
             "message": f"Successfully uploaded document for session {session_id}",
-            "document_id": document.document_id,
+            "document_id": str(document.document_id),
             "filename": file.filename
         }
 
@@ -94,6 +95,8 @@ async def ingest_documents(session_id: str = Form(...), file: UploadFile = File(
         
 
 # Endpoint where user requests lecture generation on a topic they input
+# ... (imports and other endpoints above)
+
 @app.post("/generateLecture", response_model=GeneratedLectureResponse)
 async def generate_lecture(request: LectureTopicRequest):
     try:
@@ -103,16 +106,13 @@ async def generate_lecture(request: LectureTopicRequest):
                 "session_id": request.session_id,
                 "topic": request.topic,
                 "slide_content": [],
-                "lecture_script": "Error: Session not found. Please upload documents first."
+                "lecture_script": "Error: Session not found."
             }
             
         prompt = f"""Generate a lecture on {request.topic}. 
             Use the uploaded documents as context.
-            Return ONLY a valid JSON object with:
-            - "slide_content": list of 3-5 bullet points
-            - "lecture_script": a conversational 2-minute script
-            
-            Example format:
+            Return ONLY a valid JSON object. Do not include introductory text.
+            Format:
             {{
                 "slide_content": ["Point 1", "Point 2", "Point 3"],
                 "lecture_script": "Your script here..."
@@ -124,39 +124,30 @@ async def generate_lecture(request: LectureTopicRequest):
             memory="Auto"
         )
 
-        # Check if response content exists
         if not response.content:
-            return {
-                "session_id": request.session_id,
-                "topic": request.topic,
-                "slide_content": [],
-                "lecture_script": "Error: Empty response from AI"
-            }
+             return {"session_id": request.session_id, "topic": request.topic, "slide_content": [], "lecture_script": "Empty response"}
 
-        # Try to extract JSON from response (might have markdown code blocks or extra text)
-        content = response.content.strip()
-        
-        # Remove markdown code blocks if present
-        if content.startswith("```json"):
-            content = content[7:]  # Remove ```json
-        elif content.startswith("```"):
-            content = content[3:]  # Remove ```
-        
-        if content.endswith("```"):
-            content = content[:-3]  # Remove closing ```
-        
-        content = content.strip()
+        raw_content = response.content.strip()
 
-        # Try to parse JSON
+        # --- ROBUST JSON EXTRACTION ---
+        # 1. Try to find JSON block using Regex (extracts anything between the first { and last })
+        json_match = re.search(r"(\{.*\})", raw_content, re.DOTALL)
+        
+        if json_match:
+            clean_content = json_match.group(1)
+        else:
+            # 2. Fallback: Manual markdown cleanup if regex fails
+            clean_content = raw_content.replace("```json", "").replace("```", "").strip()
+
         try:
-            response_json = json.loads(content)
+            response_json = json.loads(clean_content)
         except json.JSONDecodeError as e:
-            # If JSON parsing fails, return the raw content as lecture script
+            # If parsing still fails, we return the raw text so the UI doesn't crash
             return {
                 "session_id": request.session_id,
                 "topic": request.topic,
-                "slide_content": [f"Error parsing JSON: {str(e)}"],
-                "lecture_script": response.content  # Return raw response
+                "slide_content": ["Failed to parse AI structure"],
+                "lecture_script": raw_content # Fallback to showing the text as is
             }
 
         return {
@@ -166,14 +157,12 @@ async def generate_lecture(request: LectureTopicRequest):
             "lecture_script": response_json.get("lecture_script", "")
         }
     except Exception as e:
-        # Return proper format even for exceptions
         return {
             "session_id": request.session_id,
             "topic": request.topic,
             "slide_content": [],
-            "lecture_script": f"Error: {str(e)}"
-        }
-    
+            "lecture_script": f"System Error: {str(e)}"
+        }   
 
 # Endpoint to generate audio lecture from generated lecture script
 @app.post("/generateLectureAudio", response_model=LectureAudioResponse)
