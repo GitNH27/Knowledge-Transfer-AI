@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Card,
@@ -6,14 +6,20 @@ import {
   Typography,
   Button,
   IconButton,
+  Input,
+  Spinner,
 } from "@material-tailwind/react";
 import {
   XMarkIcon,
   PlayIcon,
   PauseIcon,
+  PaperAirplaneIcon,
+  MicrophoneIcon,
+  StopIcon,
 } from "@heroicons/react/24/outline";
 
 import { useAppConfig } from "@/context/appConfig";
+import { apiService } from "@/services/api";
 
 export function Learn() {
   const { activeLecture, setActiveLecture } = useAppConfig();
@@ -21,6 +27,12 @@ export function Learn() {
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [audio, setAudio] = useState(null);
+  const [questionText, setQuestionText] = useState("");
+  const [isAsking, setIsAsking] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [qaHistory, setQaHistory] = useState([]);
+  const mediaRecorder = useRef(null);
+  const audioChunks = useRef([]);
 
   /* -------------------- AUDIO HANDLING -------------------- */
 
@@ -57,6 +69,52 @@ export function Learn() {
       setIsPlaying(false);
     }
   };
+
+  /* --- TEXT QUESTION HANDLER --- */
+  const handleTextAsk = async () => {
+    if (!questionText.trim()) return;
+    setIsAsking(true);
+    try {
+      const res = await apiService.askQuestion(activeLecture.sessionId, questionText);
+      setQaHistory(prev => [...prev, { q: questionText, a: res.answer, audio: res.audio_url }]);
+      setQuestionText("");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsAsking(false);
+    }
+  };
+
+  const startRecording = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder.current = new MediaRecorder(stream);
+    audioChunks.current = [];
+
+    mediaRecorder.current.ondataavailable = (e) => audioChunks.current.push(e.data);
+    mediaRecorder.current.onstop = async () => {
+      setIsAsking(true);
+      const audioBlob = new Blob(audioChunks.current, { type: "audio/webm" });
+      try {
+        const res = await apiService.askQuestionAudio(activeLecture.sessionId, audioBlob);
+        setQaHistory(prev => [...prev, { q: res.question, a: res.answer, audio: res.audio_url }]);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsAsking(false);
+      }
+    };
+
+    mediaRecorder.current.start();
+    setIsRecording(true);
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder.current && isRecording) {
+      mediaRecorder.current.stop();
+      setIsRecording(false);
+    }
+  };
+
 
   /* -------------------- EMPTY STATE -------------------- */
 
@@ -153,6 +211,70 @@ export function Learn() {
           </Typography>
         </CardBody>
       </Card>
+  {/* Ask AI Section */}
+    <Card className="border border-blue-gray-100 shadow-sm">
+      <CardBody className="space-y-4">
+        <Typography variant="h5">Ask a question</Typography>
+        
+        <div className="flex gap-2 items-center">
+          <div className="relative flex w-full">
+            <Input
+              type="text"
+              label="Ask about this lecture..."
+              value={questionText}
+              onChange={(e) => setQuestionText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleTextAsk()}
+              className="pr-20"
+              containerProps={{ className: "min-w-[0]" }}
+            />
+            <IconButton
+              size="sm"
+              color={questionText ? "blue" : "blue-gray"}
+              variant="text"
+              className="!absolute right-1 top-1 rounded"
+              onClick={handleTextAsk}
+              disabled={isAsking || !questionText}
+            >
+              <PaperAirplaneIcon className="h-4 w-4" />
+            </IconButton>
+          </div>
+
+          <IconButton
+            color={isRecording ? "red" : "blue"}
+            className="rounded-full flex-shrink-0"
+            onMouseDown={startRecording}
+            onMouseUp={stopRecording}
+            disabled={isAsking}
+          >
+            {isRecording ? <StopIcon className="h-5 w-5" /> : <MicrophoneIcon className="h-5 w-5" />}
+          </IconButton>
+        </div>
+      
+      {isAsking && (
+        <div className="flex items-center gap-2 text-blue-500">
+          <Spinner className="h-4 w-4" />
+          <Typography className="text-sm font-medium">AI is thinking...</Typography>
+        </div>
+      )}
+    </CardBody>
+  </Card>
+
+    {/* QA History Display */}
+        {qaHistory.map((item, index) => (
+          <Card key={index} className="bg-blue-gray-50/50 shadow-none border border-dashed border-blue-gray-200">
+            <CardBody className="p-4 space-y-2">
+              <Typography variant="small" className="font-bold text-blue-gray-800">
+                Q: {item.q}
+              </Typography>
+              <Typography className="text-blue-gray-700">
+                {item.a}
+              </Typography>
+              {item.audio && (
+                <audio controls src={item.audio} className="h-8 mt-2 w-full max-w-xs" />
+              )}
+            </CardBody>
+          </Card>
+        ))}
     </div>
   );
 }
